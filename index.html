@@ -1194,7 +1194,7 @@ render();
 <script>
 if ('serviceWorker' in navigator && !location.hostname.includes('claudeusercontent')) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js', { scope: '/registro-de-notas/' })
+    navigator.serviceWorker.register('./sw.js', { scope: '/Registro-de-Notas/' })
       .then(r => console.log('SW registrado', r.scope))
       .catch(e => console.warn('SW error', e));
   });
