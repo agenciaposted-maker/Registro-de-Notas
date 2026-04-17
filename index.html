@@ -472,12 +472,13 @@ function slotScore(slot, grades) {
 
 // Group display score: weighted avg of slots by finalPct (for Ni column)
 function computeGroupScore(group, grades) {
-  let wSum=0, vSum=0;
+  const totalGroupPct = groupWeight(group);
+  let vSum=0, hasAny=false;
   for (const sl of group.slots) {
     const v = slotScore(sl, grades);
-    if (v !== null) { vSum += v * sl.finalPct; wSum += sl.finalPct; }
+    if (v !== null) { vSum += v * sl.finalPct; hasAny = true; }
   }
-  return wSum ? vSum/wSum : null;
+  return hasAny ? vSum/totalGroupPct : null;
 }
 
 function groupSlotScores(group, grades) {
@@ -954,9 +955,9 @@ function updateGroupWeight(el) {
 }
 
 function checkGroupWeightSum() {
-  // groupWeight check removed
-  const alert = document.getElementById('group-weight-alert');
-  alert.classList.toggle('show', Math.abs(total-100)>0.01);
+  const total = configDraft.flatMap(g=>g.slots).reduce((s,sl)=>s+sl.finalPct,0);
+  const el = document.getElementById('group-weight-alert');
+  if (el) el.classList.toggle('show', Math.abs(total-100)>0.5);
 }
 
 
