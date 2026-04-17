@@ -59,7 +59,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13
 .header-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start}
 
 /* ═══ BUTTONS ═══ */
-.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;font-size:11.5px;font-weight:600;border:none;border-radius:var(--radius-sm);cursor:pointer;transition:filter .15s,transform .1s,box-shadow .15s;font-family:var(--font);letter-spacing:.01em;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;font-size:11.5px;font-weight:600;border:none;border-radius:var(--radius-sm);cursor:pointer;transition:filter .15s,transform .1s,box-shadow .15s;font-family:var(--font);letter-spacing:.01em;white-space:nowrap;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .btn:hover{filter:brightness(1.08)}
 .btn:active{transform:scale(.97)}
 .btn-primary{background:var(--accent-mid);color:#fff}
@@ -135,9 +135,9 @@ td.name-col{text-align:left;white-space:nowrap;padding:3px 6px}
 .del-row-btn:hover{color:var(--red);background:var(--red-light)}
 
 /* ═══ PANELS / MODALS ═══ */
-.panel-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;align-items:center;justify-content:center;padding:1rem}
-.panel-backdrop.open{display:flex}
-.panel{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;max-width:560px;max-height:90vh;overflow-y:auto}
+.panel-backdrop{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.35);z-index:9999;align-items:center;justify-content:center;padding:1rem;-webkit-overflow-scrolling:touch}
+.panel-backdrop.open{display:flex!important}
+.panel{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;max-width:560px;max-height:85vh;overflow-y:auto;-webkit-overflow-scrolling:touch;position:relative;z-index:10000}
 .panel-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1}
 .panel-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
 .panel-close{background:none;border:none;cursor:pointer;color:var(--text3);font-size:18px;line-height:1;padding:3px;border-radius:4px;transition:.12s}
@@ -927,10 +927,12 @@ let configDraft = [];
 
 function openConfig() {
   configDraft = JSON.parse(JSON.stringify(groups));
-  renderConfigUI();
-  document.getElementById('config-modal').classList.add('open');
+  const modal = document.getElementById('config-modal');
+  modal.classList.add('open');
+  modal.style.display = 'flex';
+  try { renderConfigUI(); } catch(e) { console.error('renderConfigUI:', e); }
 }
-function closeConfig() { document.getElementById('config-modal').classList.remove('open'); }
+function closeConfig() { const m=document.getElementById('config-modal'); m.classList.remove('open'); m.style.display=''; }
 
 function renderConfigUI() {
   renderGroupWeightsUI();
