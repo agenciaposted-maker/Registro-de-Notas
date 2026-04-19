@@ -72,6 +72,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:13
 .btn-danger:hover{background:var(--red-light);border-color:var(--red)}
 .btn-xlsx{background:#1D6F42;color:#fff}
 .btn-pdf{background:#C0392B;color:#fff}
+.btn-json-save{background:#0369a1;color:#fff}
+.btn-json-load{background:var(--surface2);color:#0369a1;border:1px solid #0369a1}
 .btn-sm{padding:4px 9px;font-size:10.5px}
 .btn-xs{padding:2px 7px;font-size:10px}
 .btn-icon{padding:5px;border-radius:4px}
@@ -209,7 +211,7 @@ td.name-col{text-align:left;white-space:nowrap;padding:3px 6px}
   .header-actions .btn{flex:1;justify-content:center;min-height:40px}
   .toolbar{gap:6px}
   .toolbar-sep{display:none}
-  .btn-xlsx,.btn-pdf,.btn-amber,.btn-danger{flex:1;justify-content:center}
+  .btn-xlsx,.btn-pdf,.btn-amber,.btn-danger,.btn-json-save,.btn-json-load{flex:1;justify-content:center}
   .summary{grid-template-columns:repeat(2,1fr)}
   .del-row-btn{min-width:32px;min-height:32px}
 }
@@ -260,6 +262,16 @@ td.name-col{text-align:left;white-space:nowrap;padding:3px 6px}
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
     PDF
   </button>
+  <div class="toolbar-sep"></div>
+  <button class="btn btn-json-save" onclick="exportJSON()" title="Descargar archivo JSON para usar en otros dispositivos">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    Guardar JSON
+  </button>
+  <button class="btn btn-json-load" onclick="document.getElementById('json-file-input').click()" title="Cargar datos desde archivo JSON">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    Cargar JSON
+  </button>
+  <input type="file" id="json-file-input" accept=".json" style="display:none" onchange="importJSON(event)"/>
   <div class="toolbar-sep"></div>
   <button class="btn btn-amber" onclick="clearAllGrades()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
@@ -477,22 +489,39 @@ students.sort((a,b)=>a.name.localeCompare(b.name,'es'));
 // ════════════════════════════════════════════════════════
 //  MATH ENGINE
 // ════════════════════════════════════════════════════════
-// Score for one slot: simple=direct value, compound=avg of subs
+// Score for display: null when no value entered (shows —)
 function slotScore(slot, grades) {
   if (slot.type === 'simple') return grades[slot.id] ?? null;
   const vals = slot.subs.map(s => grades[s.id] ?? null).filter(v => v !== null);
   return vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
 }
 
-// Group display score: weighted avg of slots by finalPct (for Ni column)
-function computeGroupScore(group, grades) {
-  const totalGroupPct = groupWeight(group);
-  let vSum=0, hasAny=false;
-  for (const sl of group.slots) {
-    const v = slotScore(sl, grades);
-    if (v !== null) { vSum += v * sl.finalPct; hasAny = true; }
+// Score for MATH: null → 0 (celda vacía/guión vale 0 en el cálculo)
+function slotScoreMath(slot, grades) {
+  if (slot.type === 'simple') {
+    const v = grades[slot.id];
+    return v != null ? v : 0;
   }
-  return hasAny ? vSum/totalGroupPct : null;
+  const vals = slot.subs.map(s => grades[s.id] != null ? grades[s.id] : 0);
+  return vals.reduce((a,b)=>a+b,0)/vals.length;
+}
+
+// Check if a slot has at least one real (non-null) value
+function slotHasValue(slot, grades) {
+  if (slot.type === 'simple') return grades[slot.id] != null;
+  return slot.subs.some(s => grades[s.id] != null);
+}
+
+// Group display score: returns null if no grade at all in group; otherwise uses null=0
+function computeGroupScore(group, grades) {
+  const hasAny = group.slots.some(sl => slotHasValue(sl, grades));
+  if (!hasAny) return null;
+  const totalGroupPct = groupWeight(group);
+  let vSum = 0;
+  for (const sl of group.slots) {
+    vSum += slotScoreMath(sl, grades) * sl.finalPct;
+  }
+  return vSum / totalGroupPct;
 }
 
 function groupSlotScores(group, grades) {
@@ -500,27 +529,28 @@ function groupSlotScores(group, grades) {
 }
 
 function computeFinal(student) {
-  // Build slot-level contributions to final grade
-  const allSlots = groups.flatMap(g => g.slots.map(sl => ({
-    gid: g.id, id: sl.id, finalPct: sl.finalPct, score: slotScore(sl, student.grades)
-  })));
-  const totalFinalPct = allSlots.reduce((s,sl)=>s+sl.finalPct, 0);
+  const totalFinalPct = groups.flatMap(g => g.slots).reduce((s,sl)=>s+sl.finalPct, 0);
 
   // Group scores for display (Ni columns)
   const groupScores = groups.map(g => ({
     id: g.id, score: computeGroupScore(g, student.grades)
   }));
 
-  const validSlots = allSlots.filter(sl => sl.score !== null);
-  if (!validSlots.length) return { final:null, partial:true, groupScores, lowestId:null, adjScores:{} };
+  // Student must have at least one real grade to show a final
+  const hasAny = groups.some(g => g.slots.some(sl => slotHasValue(sl, student.grades)));
+  if (!hasAny) return { final:null, partial:false, groupScores, lowestId:null, adjScores:{} };
 
-  const coveredPct = validSlots.reduce((s,sl)=>s+sl.finalPct, 0);
-  const partial = coveredPct < totalFinalPct * 0.9999;
+  // Partial indicator: some cells still empty (informativo, no afecta el cálculo)
+  const partial = groups.some(g => g.slots.some(sl => {
+    if (sl.type === 'simple') return student.grades[sl.id] == null;
+    return sl.subs.some(s => student.grades[s.id] == null);
+  }));
+
   const extra = student.extra || 0;
 
   // Extra pts go to the lowest GROUP score
   let adjScores = {};
-  groupScores.forEach(g => adjScores[g.id] = g.score);
+  groupScores.forEach(g => adjScores[g.id] = g.score !== null ? g.score : 0);
   let lowestId = null;
   if (extra > 0) {
     const validGroups = groupScores.filter(g => g.score !== null);
@@ -531,24 +561,21 @@ function computeFinal(student) {
     }
   }
 
-  // Final = sum(slot.score * slot.finalPct) / coveredPct
-  // But if group has extra adjustment, recalculate that group's slots proportionally
+  // Final = weighted sum using math scores (null=0) / totalFinalPct
   let finalVal = 0;
   groups.forEach(g => {
-    const gAdj = adjScores[g.id]; // adjusted group score (only differs if extra applied)
-    const gReal = groupScores.find(x=>x.id===g.id)?.score;
+    const gAdj = adjScores[g.id];
+    const gReal = groupScores.find(x=>x.id===g.id)?.score ?? 0;
     g.slots.forEach(sl => {
-      const v = slotScore(sl, student.grades);
-      if (v === null) return;
-      let sv = v;
-      // If extra was applied to this group, scale slot scores proportionally
-      if (lowestId === g.id && gReal != null && gReal !== gAdj) {
-        sv = v + (gAdj - gReal); // shift all slots by same delta
+      let sv = slotScoreMath(sl, student.grades);
+      // If extra was applied to this group, shift all slots by same delta
+      if (lowestId === g.id && gReal !== gAdj) {
+        sv = sv + (gAdj - gReal);
       }
       finalVal += sv * sl.finalPct;
     });
   });
-  finalVal /= coveredPct;
+  finalVal /= totalFinalPct;
 
   return { final:finalVal, partial, groupScores, lowestId, adjScores };
 }
@@ -1137,6 +1164,44 @@ function exportPDF() {
     margin:{left:22,right:22},
   });
   doc.save(`notas_${seccionName.replace(/[°\s]/g,'')}.pdf`);
+}
+
+// ════════════════════════════════════════════════════════
+//  JSON BACKUP / RESTORE
+// ════════════════════════════════════════════════════════
+function exportJSON() {
+  const data = { seccionName, groups, students };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const fecha = new Date().toISOString().slice(0, 10);
+  a.download = `notas_${seccionName.replace(/[°\s]/g,'')}_${fecha}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if (!d.students || !d.groups) { alert('Archivo JSON inválido — faltan datos de alumnos o grupos.'); return; }
+      if (!confirm(`¿Cargar datos de "${d.seccionName || '?'}" con ${d.students.length} alumnos?\nEsto reemplazará el estado actual.`)) return;
+      if (d.seccionName) { seccionName = d.seccionName; document.getElementById('seccion-input').value = seccionName; }
+      if (d.groups && d.groups.length) groups = d.groups;
+      if (d.students && d.students.length) students = d.students;
+      saveState();
+      renderHead();
+      render();
+    } catch (err) {
+      alert('No se pudo leer el archivo JSON. Verifica que sea un archivo válido.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // reset para poder volver a cargar el mismo archivo
 }
 
 // ════════════════════════════════════════════════════════
