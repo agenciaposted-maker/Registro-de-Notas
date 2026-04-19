@@ -1,4 +1,4 @@
-const CACHE = 'notas-insa-v1';
+const CACHE = 'notas-insa-v5';
 
 // Solo cacheamos el HTML local en install.
 // Los CDN se cachean dinámicamente al primer uso exitoso.

@@ -531,15 +531,13 @@ function computeFinal(student) {
     }
   }
 
-  // Final = sum(slot.score * slot.finalPct) / coveredPct
-  // But if group has extra adjustment, recalculate that group's slots proportionally
+  // Final = sum(slot.score * slot.finalPct) / totalFinalPct — null slots = 0
   let finalVal = 0;
   groups.forEach(g => {
     const gAdj = adjScores[g.id]; // adjusted group score (only differs if extra applied)
     const gReal = groupScores.find(x=>x.id===g.id)?.score;
     g.slots.forEach(sl => {
-      const v = slotScore(sl, student.grades);
-      if (v === null) return;
+      const v = slotScore(sl, student.grades) ?? 0; // null → 0
       let sv = v;
       // If extra was applied to this group, scale slot scores proportionally
       if (lowestId === g.id && gReal != null && gReal !== gAdj) {
@@ -548,7 +546,7 @@ function computeFinal(student) {
       finalVal += sv * sl.finalPct;
     });
   });
-  finalVal /= coveredPct;
+  finalVal /= totalFinalPct;
 
   return { final:finalVal, partial, groupScores, lowestId, adjScores };
 }
