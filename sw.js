@@ -1,4 +1,4 @@
-const CACHE = 'notas-insa-v3';
+const CACHE = 'notas-insa-v4';
 
 const ASSETS = [
   './index.html',
